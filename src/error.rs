@@ -18,7 +18,7 @@ macro_rules! inspecterr {
 
         if $val == $err {
             let errcode = unsafe { *errno_location() };
-            return Err(ShmemError::$variant(errcode));
+            return Err($crate::error::ShmemError::$variant(errcode));
         }
     }};
 }
