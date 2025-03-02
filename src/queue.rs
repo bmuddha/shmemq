@@ -43,6 +43,10 @@ impl<T: Copy> ShmemQueue<T> {
         Ok(Self { base, offsets })
     }
 
+    pub(crate) fn syncword(&self) -> *mut i32 {
+        unsafe { self.offsets.add(1) as *mut i32 }
+    }
+
     pub(crate) fn pop(&self) -> T {
         todo!()
     }
