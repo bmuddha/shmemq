@@ -1,10 +1,11 @@
-use std::{ptr::null_mut, sync::atomic::AtomicU64};
+use std::{ptr::null_mut, sync::atomic::AtomicU32};
 
-use crate::{inspecterr, ShmemResult, ShmemSettings, DOUBLE_WORD};
+use crate::{inspecterr, ShmemResult, ShmemSettings, WORD};
 
 pub(crate) struct ShmemQueue<T: Copy> {
-    base: *const T,
-    offsets: *const AtomicU64,
+    base: *mut T,
+    pub(crate) capacity: u32,
+    offset: u32,
 }
 
 impl<T: Copy> ShmemQueue<T> {
@@ -20,7 +21,7 @@ impl<T: Copy> ShmemQueue<T> {
 
         inspecterr!(fd, Open);
 
-        let length = settings.size * size_of::<T>() + DOUBLE_WORD;
+        let length = settings.size * size_of::<T>() + WORD;
         let code = libc::ftruncate(fd, length as libc::off_t);
 
         inspecterr!(code, Resize);
@@ -36,22 +37,34 @@ impl<T: Copy> ShmemQueue<T> {
         inspecterr!(addr, Mmap, libc::MAP_FAILED);
 
         let addr = addr as *mut u8;
-        let base = addr.add(DOUBLE_WORD);
-        let base = base.add(base.align_offset(align_of::<T>())) as *const T;
-        let offsets = addr as *const AtomicU64;
+        let base = addr.add(WORD);
+        let base = base.add(base.align_offset(align_of::<T>())) as *mut T;
 
-        Ok(Self { base, offsets })
+        Ok(Self {
+            base,
+            offset: 0,
+            capacity: settings.size as u32,
+        })
     }
 
     pub(crate) fn syncword(&self) -> *mut i32 {
-        unsafe { self.offsets.add(1) as *mut i32 }
+        unsafe { self.base.sub(1) as *mut i32 }
     }
 
-    pub(crate) fn pop(&self) -> T {
-        todo!()
+    pub(crate) fn length(&self) -> *const AtomicU32 {
+        unsafe { (self.base as *const AtomicU32).sub(1) }
     }
 
-    pub(crate) fn push(&self, item: T) {
-        todo!()
+    pub(crate) unsafe fn read(&mut self) -> T {
+        let val = self.base.add(self.offset as usize).read();
+        self.offset += 1;
+        self.offset %= self.capacity;
+        val
+    }
+
+    pub(crate) unsafe fn write(&mut self, val: T) {
+        self.base.add(self.offset as usize).write(val);
+        self.offset += 1;
+        self.offset %= self.capacity;
     }
 }

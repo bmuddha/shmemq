@@ -23,7 +23,9 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
         unsafe { self.wait_inner() };
     }
 
-    pub(crate) fn wake(&self) {}
+    pub(crate) fn wake(&self) {
+        unsafe { self.wake_inner() };
+    }
 
     #[cfg(target_os = "linux")]
     #[inline(always)]

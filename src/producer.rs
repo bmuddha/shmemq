@@ -1,22 +1,18 @@
-use crate::{
-    queue::ShmemQueue,
-    sync::{Role, Synchronizer},
-    ShmemResult, ShmemSettings,
-};
+use std::sync::atomic::Ordering::*;
 
-pub struct ShmemProducer<T: Copy> {
-    shm: ShmemQueue<T>,
-    sync: Synchronizer<{ Role::PRODUCER }>,
-}
+use crate::{sync::Role, ShmemEndpoint};
+
+pub type ShmemProducer<T> = ShmemEndpoint<T, { Role::PRODUCER }>;
 
 impl<T: Copy> ShmemProducer<T> {
-    pub fn new(settings: ShmemSettings) -> ShmemResult<Self> {
-        let shm = unsafe { ShmemQueue::new(settings) }?;
-        let sync = Synchronizer::new(shm.syncword());
-        Ok(Self { shm, sync })
-    }
-
-    pub fn produce(&self) -> T {
-        todo!()
+    pub fn produce(&mut self, val: T) {
+        if self.shm.capacity == self.length().load(Acquire) {
+            self.sync.wait();
+        }
+        unsafe { self.shm.write(val) };
+        let prev = self.length().fetch_add(1, Release);
+        if prev == 0 {
+            self.sync.wake();
+        }
     }
 }
