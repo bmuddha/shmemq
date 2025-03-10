@@ -1,6 +1,6 @@
-use std::{ptr::null_mut, sync::atomic::AtomicU32};
+use std::{ffi::CString, ptr::null_mut, sync::atomic::AtomicU32};
 
-use crate::{inspecterr, ShmemResult, ShmemSettings, WORD};
+use crate::{inspecterr, sync::Role, ShmemResult, ShmemSettings, METASIZE};
 
 pub(crate) struct ShmemQueue<T: Copy> {
     base: *mut T,
@@ -11,20 +11,27 @@ pub(crate) struct ShmemQueue<T: Copy> {
 impl<T: Copy> ShmemQueue<T> {
     /// # Safety
     ///
-    pub(crate) unsafe fn new(settings: ShmemSettings) -> ShmemResult<Self> {
+    pub(crate) unsafe fn new(settings: &ShmemSettings) -> ShmemResult<Self> {
         let oflag = libc::O_CREAT | libc::O_RDWR;
-        let name = settings.name.as_ptr() as *const libc::c_char;
-        #[cfg(target_os = "linux")]
+        let cstr = CString::new(settings.name.as_str()).unwrap();
+        let name = cstr.as_ptr();
         let fd = libc::shm_open(name, oflag, 0o644);
-        #[cfg(not(target_os = "linux"))]
-        let fd = libc::shm_open(name, oflag);
 
         inspecterr!(fd, Open);
 
-        let length = settings.size * size_of::<T>() + WORD;
-        let code = libc::ftruncate(fd, length as libc::off_t);
+        let empty = {
+            let mut stats: libc::stat = unsafe { std::mem::zeroed() };
+            let code = libc::fstat(fd, &mut stats);
+            inspecterr!(code, SizeCheck);
+            stats.st_size == 0
+        };
 
-        inspecterr!(code, Resize);
+        let length = settings.size * size_of::<T>() + METASIZE;
+
+        if empty {
+            let code = libc::ftruncate(fd, length as libc::off_t);
+            inspecterr!(code, Resize);
+        }
 
         let addr = libc::mmap(
             null_mut(),
@@ -36,8 +43,10 @@ impl<T: Copy> ShmemQueue<T> {
         );
         inspecterr!(addr, Mmap, libc::MAP_FAILED);
 
+        (addr as *mut i32).write(Role::PRODUCER);
+        (addr as *mut i32).add(1).write(0);
         let addr = addr as *mut u8;
-        let base = addr.add(WORD);
+        let base = addr.add(METASIZE);
         let base = base.add(base.align_offset(align_of::<T>())) as *mut T;
 
         Ok(Self {
@@ -48,7 +57,7 @@ impl<T: Copy> ShmemQueue<T> {
     }
 
     pub(crate) fn syncword(&self) -> *mut i32 {
-        unsafe { self.base.sub(1) as *mut i32 }
+        unsafe { (self.base as *mut u32).sub(2) as *mut i32 }
     }
 
     pub(crate) fn length(&self) -> *const AtomicU32 {

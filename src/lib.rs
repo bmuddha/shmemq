@@ -13,7 +13,7 @@ pub struct ShmemSettings {
     pub size: usize,
 }
 
-const WORD: usize = size_of::<usize>();
+const METASIZE: usize = size_of::<u64>();
 
 pub struct ShmemEndpoint<T: Copy, const ROLE: i32> {
     shm: ShmemQueue<T>,
@@ -21,10 +21,17 @@ pub struct ShmemEndpoint<T: Copy, const ROLE: i32> {
     length: *const AtomicU32,
 }
 
+unsafe impl<T: Copy, const ROLE: i32> Send for ShmemEndpoint<T, ROLE> {}
+
 impl<T: Copy, const ROLE: i32> ShmemEndpoint<T, ROLE> {
     pub fn new(settings: ShmemSettings) -> ShmemResult<Self> {
-        let shm = unsafe { ShmemQueue::new(settings) }?;
+        let shm = unsafe { ShmemQueue::new(&settings) }?;
+
+        #[cfg(target_os = "linux")]
         let sync = Synchronizer::new(shm.syncword());
+        #[cfg(not(target_os = "linux"))]
+        let sync = Synchronizer::new(&settings.name, shm.syncword());
+
         let length = shm.length();
         Ok(Self { shm, sync, length })
     }
@@ -40,3 +47,5 @@ mod error;
 mod producer;
 mod queue;
 mod sync;
+#[cfg(test)]
+mod tests;
