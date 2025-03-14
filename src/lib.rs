@@ -9,7 +9,10 @@ pub type ShmemResult<T> = Result<T, ShmemError>;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct ShmemSettings {
+    /// name of file (used for memory mapping), should start with '/'
     pub name: String,
+    /// size of queue in terms of the type size
+    /// which will be used as an element of queue
     pub size: usize,
 }
 
