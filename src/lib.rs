@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
 
 use error::ShmemError;
 use queue::ShmemQueue;
@@ -21,7 +21,6 @@ const METASIZE: usize = size_of::<u64>();
 pub struct ShmemEndpoint<T: Copy, const ROLE: i32> {
     shm: ShmemQueue<T>,
     sync: Synchronizer<ROLE>,
-    length: *const AtomicU32,
 }
 
 unsafe impl<T: Copy, const ROLE: i32> Send for ShmemEndpoint<T, ROLE> {}
@@ -35,13 +34,12 @@ impl<T: Copy, const ROLE: i32> ShmemEndpoint<T, ROLE> {
         #[cfg(not(target_os = "linux"))]
         let sync = Synchronizer::new(&settings.name, shm.syncword());
 
-        let length = shm.length();
-        Ok(Self { shm, sync, length })
+        Ok(Self { shm, sync })
     }
 
     #[inline(always)]
-    fn length(&self) -> &AtomicU32 {
-        unsafe { &*self.length }
+    pub fn is_full(&self) -> bool {
+        self.sync.inner().load(Ordering::Acquire) == self.shm.capacity as i32
     }
 }
 

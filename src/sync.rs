@@ -1,8 +1,7 @@
 #[cfg(target_os = "linux")]
-use std::ptr::null_mut;
+use std::{ptr::null_mut, sync::atomic::Ordering::*};
 
 use std::sync::atomic::AtomicI32;
-use std::sync::atomic::Ordering::*;
 
 #[cfg(target_os = "linux")]
 pub(crate) struct Synchronizer<const ROLE: i32> {
@@ -54,24 +53,26 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
     #[cfg(target_os = "linux")]
     #[inline(always)]
     unsafe fn wait_inner(&self) {
-        libc::syscall(
-            libc::SYS_futex,
-            self.flag,
-            libc::FUTEX_WAIT,
-            0,
-            null_mut::<u32>(),
-            null_mut::<u32>(),
-            0,
-        );
-        let atomic = self.flag as *const AtomicI32;
-        unsafe { &*atomic }.fetch_sub(1, Release);
+        let atomic = self.inner();
+        while atomic.load(Acquire) == 0 {
+            libc::syscall(
+                libc::SYS_futex,
+                self.flag,
+                libc::FUTEX_WAIT,
+                0,
+                null_mut::<u32>(),
+                null_mut::<u32>(),
+                0,
+            );
+        }
+        atomic.fetch_sub(1, Release);
     }
 
     #[cfg(target_os = "linux")]
     #[inline(always)]
     unsafe fn wake_inner(&self) {
-        let atomic = self.flag as *const AtomicI32;
-        unsafe { &*atomic }.fetch_add(1, Release);
+        let atomic = self.inner();
+        atomic.fetch_add(1, Release);
         libc::syscall(
             libc::SYS_futex,
             self.flag,
@@ -93,5 +94,10 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
     #[inline(always)]
     unsafe fn wake_inner(&self) {
         libc::sem_post(self.sem);
+    }
+
+    #[inline(always)]
+    pub(crate) fn inner(&self) -> &AtomicI32 {
+        unsafe { &*(self.flag as *const AtomicI32) }
     }
 }

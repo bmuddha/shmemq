@@ -1,4 +1,4 @@
-use std::{ffi::CString, ptr::null_mut, sync::atomic::AtomicU32};
+use std::{ffi::CString, ptr::null_mut};
 
 use crate::{inspecterr, ShmemResult, ShmemSettings, METASIZE};
 
@@ -58,10 +58,6 @@ impl<T: Copy> ShmemQueue<T> {
 
     pub(crate) fn syncword(&self) -> *mut i32 {
         unsafe { (self.base as *mut u32).sub(2) as *mut i32 }
-    }
-
-    pub(crate) fn length(&self) -> *const AtomicU32 {
-        unsafe { (self.base as *const AtomicU32).sub(1) }
     }
 
     pub(crate) unsafe fn read(&mut self) -> T {
