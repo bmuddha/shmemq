@@ -39,16 +39,20 @@ fn init<T: Copy>() -> (ShmemProducer<T>, ShmemConsumer<T>) {
 
 #[test]
 fn test_queue() {
-    let (mut tx, mut rx) = init::<[u64; 32]>();
+    const MSGSIZE: usize = 32;
+    let (mut tx, mut rx) = init::<[u64; MSGSIZE]>();
     let consumer = move || {
         for i in 0..QUEUESIZE * 2 {
             let val = rx.consume();
-            assert_eq!(val, [i; 32], "consumed values don't match produced ones")
+            assert_eq!(
+                val, [i; MSGSIZE],
+                "consumed values don't match produced ones"
+            )
         }
     };
     let producer = move || {
         for i in 0..QUEUESIZE * 2 {
-            tx.produce([i; 32]);
+            tx.produce([i; MSGSIZE]);
         }
     };
 

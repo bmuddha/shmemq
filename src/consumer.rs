@@ -6,12 +6,10 @@ pub type ShmemConsumer<T> = ShmemEndpoint<T, { Role::CONSUMER }>;
 
 impl<T: Copy> ShmemEndpoint<T, { Role::CONSUMER }> {
     pub fn consume(&mut self) -> T {
-        self.sync.wait();
-        let val = unsafe { self.shm.read() };
-        let prev = self.length().fetch_sub(1, Release);
-        if prev == self.shm.capacity {
-            self.sync.wake();
+        while self.length().load(Acquire) == 0 {
+            self.sync.wait();
         }
-        val
+        self.length().fetch_sub(1, Release);
+        unsafe { self.shm.read() }
     }
 }

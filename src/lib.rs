@@ -45,9 +45,9 @@ impl<T: Copy, const ROLE: i32> ShmemEndpoint<T, ROLE> {
     }
 }
 
-mod consumer;
+pub mod consumer;
 mod error;
-mod producer;
+pub mod producer;
 mod queue;
 mod sync;
 #[cfg(test)]

@@ -54,31 +54,24 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
     #[cfg(target_os = "linux")]
     #[inline(always)]
     unsafe fn wait_inner(&self) {
-        let expected = Self::flip_wait_bits();
         libc::syscall(
             libc::SYS_futex,
             self.flag,
             libc::FUTEX_WAIT,
-            expected,
+            0,
             null_mut::<u32>(),
             null_mut::<u32>(),
             0,
         );
+        let atomic = self.flag as *const AtomicI32;
+        unsafe { &*atomic }.fetch_sub(1, Release);
     }
 
     #[cfg(target_os = "linux")]
     #[inline(always)]
     unsafe fn wake_inner(&self) {
         let atomic = self.flag as *const AtomicI32;
-        let blocker = unsafe { &*atomic }.load(Acquire);
-
-        // if no one is waiting for this
-        // side of queue, then do nothing
-        if blocker != ROLE {
-            return;
-        }
-        let flipped = Self::flip_wait_bits();
-        unsafe { &*atomic }.store(flipped, Release);
+        unsafe { &*atomic }.fetch_add(1, Release);
         libc::syscall(
             libc::SYS_futex,
             self.flag,
@@ -100,17 +93,5 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
     #[inline(always)]
     unsafe fn wake_inner(&self) {
         libc::sem_post(self.sem);
-    }
-
-    #[inline(always)]
-    fn flip_wait_bits() -> i32 {
-        ROLE.wrapping_add(1).wrapping_neg()
-    }
-
-    #[inline(always)]
-    pub(crate) fn set_blocker(&self) {
-        let atomic = self.flag as *const AtomicI32;
-        let blocker = Self::flip_wait_bits();
-        unsafe { &*atomic }.store(blocker, Release);
     }
 }

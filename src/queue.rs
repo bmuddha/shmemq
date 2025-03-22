@@ -1,6 +1,6 @@
 use std::{ffi::CString, ptr::null_mut, sync::atomic::AtomicU32};
 
-use crate::{inspecterr, sync::Role, ShmemResult, ShmemSettings, METASIZE};
+use crate::{inspecterr, ShmemResult, ShmemSettings, METASIZE};
 
 pub(crate) struct ShmemQueue<T: Copy> {
     base: *mut T,
@@ -43,7 +43,7 @@ impl<T: Copy> ShmemQueue<T> {
         );
         inspecterr!(addr, Mmap, libc::MAP_FAILED);
 
-        (addr as *mut i32).write(Role::PRODUCER);
+        (addr as *mut i32).write(0);
         (addr as *mut i32).add(1).write(0);
         let addr = addr as *mut u8;
         let base = addr.add(METASIZE);
