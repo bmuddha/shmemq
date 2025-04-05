@@ -7,7 +7,6 @@ ShmemQ is a Rust library for implementing a shared memory queue designed for int
 
 - **Single Producer, Single Consumer**: Ensures data integrity with one producer and one consumer.
 - **Shared Memory**: Utilizes shared memory for fast IPC.
-- **Blocking and Non-blocking Operations**: Provides methods for both scenarios.
 - **Platform Support**: Compatible with Linux and other Unix-like systems.
 
 ## Usage
