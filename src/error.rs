@@ -1,10 +1,15 @@
 use std::fmt::Display;
 
+/// Possible error codes when working with shared memory queue
 #[derive(Debug)]
 pub enum ShmemError {
+    /// Failed to open provided shared memory file
     Open(i32),
+    /// Failed to resize the shared memory file to specified size
     Resize(i32),
+    /// Failed to query the size of shared memory file
     SizeCheck(i32),
+    /// Failed to memory map the shared memory file
     Mmap(i32),
 }
 

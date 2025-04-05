@@ -2,16 +2,23 @@ use std::{ffi::CString, ptr::null_mut};
 
 use crate::{inspecterr, ShmemResult, ShmemSettings, METASIZE};
 
+/// The core type for managing shared memory queue
 pub(crate) struct ShmemQueue<T: Copy> {
+    /// starting address of the queue
     base: *mut T,
+    /// total capacity (in terms of size of T) of the queue
     pub(crate) capacity: u32,
+    /// current offset (in terms of T) into the queue,
+    /// where next element is to be read from
     offset: u32,
+    /// name of the shared memory file
     name: CString,
 }
 
 impl<T: Copy> ShmemQueue<T> {
     /// # Safety
-    ///
+    /// Caller must make sure that there's only one consumer and only one
+    /// producer endpont, otherwise it will result in undefined behavior
     pub(crate) unsafe fn new(settings: &ShmemSettings) -> ShmemResult<Self> {
         let oflag = libc::O_CREAT | libc::O_RDWR;
         let name = CString::new(settings.name.as_str()).unwrap();
@@ -20,7 +27,7 @@ impl<T: Copy> ShmemQueue<T> {
         inspecterr!(fd, Open);
 
         let empty = {
-            let mut stats: libc::stat = unsafe { std::mem::zeroed() };
+            let mut stats: libc::stat = std::mem::zeroed();
             let code = libc::fstat(fd, &mut stats);
             inspecterr!(code, SizeCheck);
             stats.st_size == 0

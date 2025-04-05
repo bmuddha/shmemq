@@ -4,11 +4,11 @@ use std::{ptr::null_mut, sync::atomic::Ordering::*};
 use std::sync::atomic::AtomicI32;
 
 #[cfg(target_os = "linux")]
-pub(crate) struct Synchronizer<const ROLE: i32> {
+pub(crate) struct Synchronizer {
     flag: *mut i32,
 }
 #[cfg(not(target_os = "linux"))]
-pub(crate) struct Synchronizer<const ROLE: i32> {
+pub(crate) struct Synchronizer {
     flag: *mut i32,
     sem: *mut i32,
 }
@@ -24,7 +24,7 @@ impl Role {
     pub const CONSUMER: i32 = Self::Consumer as i32;
 }
 
-impl<const ROLE: i32> Synchronizer<ROLE> {
+impl Synchronizer {
     #[cfg(target_os = "linux")]
     pub(crate) fn new(flag: *mut i32) -> Self {
         Self { flag }
