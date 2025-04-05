@@ -54,7 +54,7 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
     #[inline(always)]
     unsafe fn wait_inner(&self) {
         let atomic = self.inner();
-        while atomic.load(Acquire) == 0 {
+        while atomic.load(Relaxed) == 0 {
             libc::syscall(
                 libc::SYS_futex,
                 self.flag,
@@ -65,14 +65,14 @@ impl<const ROLE: i32> Synchronizer<ROLE> {
                 0,
             );
         }
-        atomic.fetch_sub(1, Release);
+        atomic.fetch_sub(1, Relaxed);
     }
 
     #[cfg(target_os = "linux")]
     #[inline(always)]
     unsafe fn wake_inner(&self) {
         let atomic = self.inner();
-        atomic.fetch_add(1, Release);
+        atomic.fetch_add(1, Relaxed);
         libc::syscall(
             libc::SYS_futex,
             self.flag,

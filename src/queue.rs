@@ -6,6 +6,7 @@ pub(crate) struct ShmemQueue<T: Copy> {
     base: *mut T,
     pub(crate) capacity: u32,
     offset: u32,
+    name: CString,
 }
 
 impl<T: Copy> ShmemQueue<T> {
@@ -13,9 +14,8 @@ impl<T: Copy> ShmemQueue<T> {
     ///
     pub(crate) unsafe fn new(settings: &ShmemSettings) -> ShmemResult<Self> {
         let oflag = libc::O_CREAT | libc::O_RDWR;
-        let cstr = CString::new(settings.name.as_str()).unwrap();
-        let name = cstr.as_ptr();
-        let fd = libc::shm_open(name, oflag, 0o644);
+        let name = CString::new(settings.name.as_str()).unwrap();
+        let fd = libc::shm_open(name.as_ptr(), oflag, 0o644);
 
         inspecterr!(fd, Open);
 
@@ -53,6 +53,7 @@ impl<T: Copy> ShmemQueue<T> {
             base,
             offset: 0,
             capacity: settings.size as u32,
+            name,
         })
     }
 
@@ -71,5 +72,11 @@ impl<T: Copy> ShmemQueue<T> {
         self.base.add(self.offset as usize).write(val);
         self.offset += 1;
         self.offset %= self.capacity;
+    }
+}
+
+impl<T: Copy> Drop for ShmemQueue<T> {
+    fn drop(&mut self) {
+        unsafe { libc::shm_unlink(self.name.as_ptr()) };
     }
 }
