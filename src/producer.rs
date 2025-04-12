@@ -1,4 +1,8 @@
-use crate::{sync::Role, ShmemEndpoint};
+use crate::{
+    queue::{roundup_to_u32_align, LEN_PREFIX_SIZE},
+    sync::Role,
+    ShmemEndpoint,
+};
 
 pub type ShmemProducer<T> = ShmemEndpoint<T, { Role::PRODUCER }>;
 
@@ -23,10 +27,12 @@ impl ShmemEndpoint<u8, { Role::PRODUCER }> {
     /// consumers are consistently slower than producers
     pub fn produce_slice(&mut self, slice: impl AsRef<[u8]>) {
         let slice = slice.as_ref();
-        while self.is_full() {
+        let amount = roundup_to_u32_align(slice.len() as u32) + LEN_PREFIX_SIZE;
+        while self.has_capacity(amount) {
             std::thread::yield_now();
         }
         unsafe { self.shm.write_slice(slice) };
+        self.increment_count(amount);
         self.sync.wake();
     }
 }

@@ -2,7 +2,7 @@ use std::{iter, ops::Deref};
 
 use crate::{consumer::ShmemConsumer, producer::ShmemProducer, ShmemSettings};
 
-const QUEUESIZE: u64 = 1024 * 1024 * 2;
+const QUEUESIZE: u64 = 1024 * 512;
 
 fn settings() -> ShmemSettings {
     let mut name: Vec<u8> = iter::repeat_with(|| rand::random_range(97..123))
@@ -38,7 +38,7 @@ fn init<T: Copy>() -> (ShmemProducer<T>, ShmemConsumer<T>) {
 }
 
 #[test]
-fn test_queue() {
+fn test_fixed_size() {
     const MSGSIZE: usize = 32;
     let (mut tx, mut rx) = init::<[u64; MSGSIZE]>();
     let consumer = move || {
@@ -64,8 +64,8 @@ fn test_queue() {
 }
 
 #[test]
-fn test_slice_queue() {
-    const MSGSIZE: usize = 32;
+fn test_variable_size() {
+    const MSGSIZE: usize = 512;
     let (mut tx, mut rx) = init::<u8>();
     let consumer = move || {
         for i in 0..QUEUESIZE * 2 {

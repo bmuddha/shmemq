@@ -1,7 +1,7 @@
 use std::{ffi::CString, ptr::null_mut};
 
 use crate::{inspecterr, ShmemResult, ShmemSettings, METASIZE};
-const LEN_PREFIX_SIZE: u32 = std::mem::size_of::<u32>() as u32;
+pub(crate) const LEN_PREFIX_SIZE: u32 = std::mem::size_of::<u32>() as u32;
 
 /// The core type for managing shared memory queue
 pub(crate) struct ShmemQueue<T: Copy> {
@@ -99,14 +99,14 @@ impl ShmemQueue<u8> {
         }
         self.offset += LEN_PREFIX_SIZE;
         let ptr = self.pointer();
-        self.offset += len + (LEN_PREFIX_SIZE - len % LEN_PREFIX_SIZE) % LEN_PREFIX_SIZE;
+        self.offset += roundup_to_u32_align(len);
         std::slice::from_raw_parts(ptr, len as usize)
     }
 
     pub(crate) unsafe fn write_slice(&mut self, slice: &[u8]) {
         let remaining = self.capacity - self.offset;
         let len = slice.len() as u32;
-        let rounded_len = len + (LEN_PREFIX_SIZE - len % LEN_PREFIX_SIZE) % LEN_PREFIX_SIZE;
+        let rounded_len = roundup_to_u32_align(len);
 
         if remaining == 0 {
             self.offset = 0;
@@ -126,4 +126,9 @@ impl<T: Copy> Drop for ShmemQueue<T> {
     fn drop(&mut self) {
         unsafe { libc::shm_unlink(self.name.as_ptr()) };
     }
+}
+
+#[inline(always)]
+pub(crate) fn roundup_to_u32_align(val: u32) -> u32 {
+    val + (LEN_PREFIX_SIZE - val % LEN_PREFIX_SIZE) % LEN_PREFIX_SIZE
 }

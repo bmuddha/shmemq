@@ -1,7 +1,7 @@
 #[cfg(target_os = "linux")]
 use std::{ptr::null_mut, sync::atomic::Ordering::*};
 
-use std::sync::atomic::AtomicI32;
+use std::sync::atomic::AtomicU32;
 
 #[cfg(target_os = "linux")]
 pub(crate) struct Synchronizer {
@@ -13,15 +13,15 @@ pub(crate) struct Synchronizer {
     sem: *mut i32,
 }
 
-#[repr(i32)]
+#[repr(i8)]
 pub enum Role {
-    Producer = i32::MIN,
-    Consumer = i32::MAX,
+    Producer = i8::MIN,
+    Consumer = i8::MAX,
 }
 
 impl Role {
-    pub const PRODUCER: i32 = Self::Producer as i32;
-    pub const CONSUMER: i32 = Self::Consumer as i32;
+    pub const PRODUCER: i8 = Self::Producer as i8;
+    pub const CONSUMER: i8 = Self::Consumer as i8;
 }
 
 impl Synchronizer {
@@ -97,7 +97,7 @@ impl Synchronizer {
     }
 
     #[inline(always)]
-    pub(crate) fn inner(&self) -> &AtomicI32 {
-        unsafe { &*(self.flag as *const AtomicI32) }
+    pub(crate) fn inner(&self) -> &AtomicU32 {
+        unsafe { &*(self.flag as *const AtomicU32) }
     }
 }

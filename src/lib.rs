@@ -37,14 +37,14 @@ const METASIZE: usize = size_of::<u64>();
 /// # Safety
 /// User must make sure that there's only one consumer and only one producer, otherwise it will
 /// result in undefined behavior
-pub struct ShmemEndpoint<T: Copy, const ROLE: i32> {
+pub struct ShmemEndpoint<T: Copy, const ROLE: i8> {
     shm: ShmemQueue<T>,
     sync: Synchronizer,
 }
 
-unsafe impl<T: Copy, const ROLE: i32> Send for ShmemEndpoint<T, ROLE> {}
+unsafe impl<T: Copy, const ROLE: i8> Send for ShmemEndpoint<T, ROLE> {}
 
-impl<T: Copy, const ROLE: i32> ShmemEndpoint<T, ROLE> {
+impl<T: Copy, const ROLE: i8> ShmemEndpoint<T, ROLE> {
     /// Opens the shared memory queue endpont
     ///
     /// # Safety
@@ -64,7 +64,28 @@ impl<T: Copy, const ROLE: i32> ShmemEndpoint<T, ROLE> {
     /// Checks whether the queue capacity has been exhausted
     #[inline(always)]
     pub fn is_full(&self) -> bool {
-        self.sync.inner().load(Ordering::Acquire) == self.shm.capacity as i32
+        self.sync.inner().load(Ordering::Relaxed) == self.shm.capacity
+    }
+}
+
+impl<const ROLE: i8> ShmemEndpoint<u8, ROLE> {
+    #[inline]
+    pub(crate) fn decrement_count(&self, amount: u32) {
+        #[cfg(target_os = "linux")]
+        let amount = amount - 1;
+        self.sync.inner().fetch_sub(amount, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub(crate) fn increment_count(&self, amount: u32) {
+        #[cfg(target_os = "linux")]
+        let amount = amount - 1;
+        self.sync.inner().fetch_add(amount, Ordering::Relaxed);
+    }
+
+    #[inline(always)]
+    pub fn has_capacity(&self, extra: u32) -> bool {
+        self.sync.inner().load(Ordering::Relaxed) + extra >= self.shm.capacity
     }
 }
 
