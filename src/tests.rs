@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, ops::Deref};
 
 use crate::{consumer::ShmemConsumer, producer::ShmemProducer, ShmemSettings};
 
@@ -53,6 +53,33 @@ fn test_queue() {
     let producer = move || {
         for i in 0..QUEUESIZE * 2 {
             tx.produce([i; MSGSIZE]);
+        }
+    };
+
+    let ch = std::thread::spawn(consumer);
+    let ph = std::thread::spawn(producer);
+
+    assert!(ch.join().is_ok(), "failed to run consumer");
+    assert!(ph.join().is_ok(), "failed to run producer");
+}
+
+#[test]
+fn test_slice_queue() {
+    const MSGSIZE: usize = 32;
+    let (mut tx, mut rx) = init::<u8>();
+    let consumer = move || {
+        for i in 0..QUEUESIZE * 2 {
+            let val = rx.consume_slice();
+            assert_eq!(
+                val.deref(),
+                &[i as u8; MSGSIZE],
+                "consumed values don't match produced ones"
+            )
+        }
+    };
+    let producer = move || {
+        for i in 0..QUEUESIZE * 2 {
+            tx.produce_slice([i as u8; MSGSIZE]);
         }
     };
 

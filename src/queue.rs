@@ -1,6 +1,7 @@
 use std::{ffi::CString, ptr::null_mut};
 
 use crate::{inspecterr, ShmemResult, ShmemSettings, METASIZE};
+const LEN_PREFIX_SIZE: u32 = std::mem::size_of::<u32>() as u32;
 
 /// The core type for managing shared memory queue
 pub(crate) struct ShmemQueue<T: Copy> {
@@ -64,21 +65,60 @@ impl<T: Copy> ShmemQueue<T> {
         })
     }
 
+    unsafe fn pointer(&self) -> *mut T {
+        self.base.add(self.offset as usize)
+    }
+
     pub(crate) fn syncword(&self) -> *mut i32 {
         unsafe { (self.base as *mut u32).sub(2) as *mut i32 }
     }
 
     pub(crate) unsafe fn read(&mut self) -> T {
-        let val = self.base.add(self.offset as usize).read();
+        let val = self.pointer().read();
         self.offset += 1;
         self.offset %= self.capacity;
         val
     }
 
     pub(crate) unsafe fn write(&mut self, val: T) {
-        self.base.add(self.offset as usize).write(val);
+        self.pointer().write(val);
         self.offset += 1;
         self.offset %= self.capacity;
+    }
+}
+
+impl ShmemQueue<u8> {
+    pub(crate) unsafe fn read_slice(&mut self) -> &[u8] {
+        if self.offset == self.capacity {
+            self.offset = 0;
+        }
+        let mut len = (self.pointer() as *const u32).read();
+        if len == u32::MAX {
+            self.offset = 0;
+            len = (self.pointer() as *const u32).read();
+        }
+        self.offset += LEN_PREFIX_SIZE;
+        let ptr = self.pointer();
+        self.offset += len + (LEN_PREFIX_SIZE - len % LEN_PREFIX_SIZE) % LEN_PREFIX_SIZE;
+        std::slice::from_raw_parts(ptr, len as usize)
+    }
+
+    pub(crate) unsafe fn write_slice(&mut self, slice: &[u8]) {
+        let remaining = self.capacity - self.offset;
+        let len = slice.len() as u32;
+        let rounded_len = len + (LEN_PREFIX_SIZE - len % LEN_PREFIX_SIZE) % LEN_PREFIX_SIZE;
+
+        if remaining == 0 {
+            self.offset = 0;
+        } else if remaining < rounded_len + LEN_PREFIX_SIZE {
+            (self.pointer() as *mut u32).write(u32::MAX);
+            self.offset = 0;
+        }
+        (self.pointer() as *mut u32).write(len);
+        self.offset += LEN_PREFIX_SIZE;
+        self.pointer()
+            .copy_from_nonoverlapping(slice.as_ptr(), slice.len());
+        self.offset += rounded_len;
     }
 }
 
