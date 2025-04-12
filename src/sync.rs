@@ -1,5 +1,6 @@
 #[cfg(target_os = "linux")]
-use std::{ptr::null_mut, sync::atomic::Ordering::*};
+use std::ptr::null_mut;
+use std::sync::atomic::Ordering::*;
 
 use std::sync::atomic::AtomicU32;
 
@@ -44,9 +45,11 @@ impl Synchronizer {
 
     pub(crate) fn wait(&self) {
         unsafe { self.wait_inner() };
+        self.inner().fetch_sub(1, Relaxed);
     }
 
-    pub(crate) fn wake(&self) {
+    pub(crate) fn wake(&self, amount: u32) {
+        self.inner().fetch_add(amount, Relaxed);
         unsafe { self.wake_inner() };
     }
 
@@ -65,14 +68,11 @@ impl Synchronizer {
                 0,
             );
         }
-        atomic.fetch_sub(1, Relaxed);
     }
 
     #[cfg(target_os = "linux")]
     #[inline(always)]
     unsafe fn wake_inner(&self) {
-        let atomic = self.inner();
-        atomic.fetch_add(1, Relaxed);
         libc::syscall(
             libc::SYS_futex,
             self.flag,

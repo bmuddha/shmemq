@@ -16,7 +16,7 @@ impl<T: Copy> ShmemEndpoint<T, { Role::PRODUCER }> {
             std::thread::yield_now();
         }
         unsafe { self.shm.write(val) };
-        self.sync.wake();
+        self.sync.wake(1);
     }
 }
 
@@ -32,7 +32,6 @@ impl ShmemEndpoint<u8, { Role::PRODUCER }> {
             std::thread::yield_now();
         }
         unsafe { self.shm.write_slice(slice) };
-        self.increment_count(amount);
-        self.sync.wake();
+        self.sync.wake(amount);
     }
 }

@@ -71,16 +71,8 @@ impl<T: Copy, const ROLE: i8> ShmemEndpoint<T, ROLE> {
 impl<const ROLE: i8> ShmemEndpoint<u8, ROLE> {
     #[inline]
     pub(crate) fn decrement_count(&self, amount: u32) {
-        #[cfg(target_os = "linux")]
         let amount = amount - 1;
         self.sync.inner().fetch_sub(amount, Ordering::Relaxed);
-    }
-
-    #[inline]
-    pub(crate) fn increment_count(&self, amount: u32) {
-        #[cfg(target_os = "linux")]
-        let amount = amount - 1;
-        self.sync.inner().fetch_add(amount, Ordering::Relaxed);
     }
 
     #[inline(always)]
